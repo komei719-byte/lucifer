@@ -11,11 +11,10 @@ document.getElementById('runBtn').addEventListener('click', () => {
 
     // パラメータ設定（日次換算）
     const tradingDaysPerYear = 252;
-    // ナスダック100の原資産の期待リターン・ボラティリティをベースに3倍をかける（コスト含む）
     const underlyingDailyMean = 0.08 / tradingDaysPerYear;
     const underlyingDailyVol = 0.25 / Math.sqrt(tradingDaysPerYear);
     const leverage = 3.0;
-    const dailyCost = 0.01 / tradingDaysPerYear; // レバレッジ維持コスト・信託報酬など
+    const dailyCost = 0.01 / tradingDaysPerYear; // レバレッジ維持コスト
 
     for (let t = 0; t < trials; t++) {
         let asset = V0;
@@ -24,30 +23,35 @@ document.getElementById('runBtn').addEventListener('click', () => {
         let isFailed = false;
 
         for (let y = 0; y < years; y++) {
-            let yearStartAsset = asset;
-
-            // 1年を252営業日として日次でシミュレーション（レバレッジ減衰を正確に再現）
+            // 1年を252営業日として日次でシミュレーション
             for (let d = 0; d < tradingDaysPerYear; d++) {
                 // Box-Muller法による正規乱数
                 let u1 = Math.max(1e-7, Math.random());
                 let u2 = Math.random();
                 let z = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
 
-                // テールリスク（ITバブルやリーマン等の暴落クラスター）の確率的発生
-                // 暴落期間中は連続して下落圧力がかかるようにする
                 let marketReturn = underlyingDailyMean + underlyingDailyVol * z;
                 
-                // たまに大暴落モードに入る（確率 1.5% 程度で数日間継続するようなショック）
+                // 暴落クラスター（テールリスク）
                 if (Math.random() < 0.008) {
-                    marketReturn = -0.07; // 1日で7%下落するような強烈な日
+                    marketReturn = -0.07; // 1日で7%下落
                 }
 
-                // 3倍レバレッジの日常変動（コスト控除含む）
+                // 3倍レバレッジの日常変動
                 let tqqqDailyReturn = marketReturn * leverage - dailyCost;
 
+                // --- 【対ゼロ・マイナスガード】 ---
+                // レバレッジ商品がどんなに暴落しても、1日の下落率が -100%（因子が 0）を下回って
+                // 資産価値がマイナス（負値）や計算エラー（NaN）にならないよう厳格にガードする
+                if (tqqqDailyReturn <= -1.0) {
+                    tqqqDailyReturn = -0.9999; // 理論上のゼロ収れんガード（完全ロスト手前で踏みとどまる）
+                }
+
                 asset = asset * (1 + tqqqDailyReturn);
-                if (asset < 0) {
-                    asset = 0;
+
+                // 資産が実質的にゼロとみなせる水準（例: 1円未満）になった場合のフロア処理
+                if (asset < 1.0) {
+                    asset = 0.0;
                     break;
                 }
             }
@@ -58,9 +62,7 @@ document.getElementById('runBtn').addEventListener('click', () => {
             }
 
             // --- 年次リバランスと仮想アンカー判定 ---
-            // 仕様書に基づく「仮想アンカー基準値 ($A_t$)」との比較
-            // ここでは前年のアンカー、または目標とするベースに対して不足分を計算
-            let targetAnchor = anchor; // 通常は前年のアンカーを維持またはインフレ調整
+            let targetAnchor = anchor;
             
             if (asset < targetAnchor) {
                 let shortage = targetAnchor - asset;
@@ -76,7 +78,6 @@ document.getElementById('runBtn').addEventListener('click', () => {
                     asset = targetAnchor; // 追加手出しでアンカー水準まで回復
                 }
             } else {
-                // 資産が増えている場合はアンカーを切り上げる（あるいは一定に保つ）
                 anchor = Math.max(anchor, asset);
             }
         }
