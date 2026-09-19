@@ -139,12 +139,11 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('taxTotal').textContent = `${medTax.toFixed(1)} 万円`;
             document.getElementById('achievementDist').textContent = `達成率: ${achievementRate.toFixed(1)}% | 中央値: ${medYears}年 (平均: ${avgYears.toFixed(1)}年) ／ 最速ペース: ${p5Years}年 ／ 時間がかかるケース: ${p95Years}年`;
 
-            // --- グラフ（CSSバー）の動的描画 ---
+            // --- グラフ（CSSバー）への反映 ---
             document.getElementById('valP10').textContent = `${p10Asset.toLocaleString()}万`;
             document.getElementById('valP50').textContent = `${p50Asset.toLocaleString()}万`;
             document.getElementById('valP90').textContent = `${p90Asset.toLocaleString()}万`;
 
-            // 最大値を基準にしてバーの長さをパーセンテージで計算
             const maxAssetForScale = Math.max(p90Asset, 1);
             document.getElementById('barP10').style.width = `${Math.max(5, (p10Asset / maxAssetForScale) * 100)}%`;
             document.getElementById('barP50').style.width = `${Math.max(5, (p50Asset / maxAssetForScale) * 100)}%`;
