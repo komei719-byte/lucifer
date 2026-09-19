@@ -2,56 +2,28 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>ルシファーの悪魔 - モンテカルロ・シミュレーション</title>
+    <title>ルシファーの悪魔 シミュレーション</title>
     <style>
-        body { font-family: sans-serif; max-width: 900px; margin: 30px auto; padding: 0 20px; color: #333; }
-        h1 { font-size: 24px; border-bottom: 2px solid #333; padding-bottom: 10px; }
-        .controls { background: #f9f9f9; padding: 20px; border-radius: 8px; margin-bottom: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-        .control-group { display: flex; flex-direction: column; }
-        label { font-size: 14px; font-weight: bold; margin-bottom: 5px; }
-        input { padding: 8px; font-size: 14px; }
-        button { grid-column: span 2; padding: 12px; font-size: 16px; font-weight: bold; background: #2ea44f; color: white; border: none; border-radius: 4px; cursor: pointer; }
-        button:hover { background: #2c974b; }
-        .results { background: #f1f8ff; padding: 20px; border-radius: 8px; }
-        .results h2 { margin-top: 0; font-size: 18px; }
-        .metric { font-size: 16px; margin: 10px 0; }
-        .metric span { font-weight: bold; color: #0366d6; }
+        body { font-family: sans-serif; margin: 40px; line-height: 1.6; }
+        .results { margin-top: 20px; padding: 20px; background: #f4f4f4; border-radius: 8px; }
+        .metric { margin-bottom: 10px; font-weight: bold; }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; }
     </style>
 </head>
 <body>
 
-    <h1>「ルシファーの悪魔」シミュレーション</h1>
-    <p>仮想アンカーと追加手出しバッファによる防衛型フルレバレッジ戦略（TQQQ対象）の破綻確率検証システム</p>
+    <h1>ルシファーの悪魔 戦略シミュレーター</h1>
+    <button id="runBtn">シミュレーション実行</button>
 
-    <div class="controls">
-        <div class="control-group">
-            <label>初期投資額 ($V_0$):</label>
-            <input type="number" id="v0" value="1000000">
-        </div>
-        <div class="control-group">
-            <label>運用期間 (年):</label>
-            <input type="number" id="years" value="20">
-        </div>
-        <div class="control-group">
-            <label>試行回数 (N):</label>
-            <input type="number" id="trials" value="1000">
-        </div>
-        <div class="control-group">
-            <label>通算手出し上限 ($B_{\text{max}}$):</label>
-            <input type="number" id="bMax" value="3000000">
-        </div>
-        <button id="runBtn">シミュレーション実行</button>
+    <div class="results" id="resultsArea" style="display: none;">
+        <h2>シミュレーション結果（KPI）</h2>
+        <div class="metric">実質破綻確率: <span id="failRate">-</span></div>
+        <div class="metric">追加手出し額の分布: <span id="injectionDist">-</span></div>
+        <div class="metric">税引き後 最終総資産額の分布: <span id="p50Asset">-</span></div>
+        <div class="metric">累積納税総額: <span id="taxTotal">-</span></div>
     </div>
 
-<div class="results" id="resultsArea" style="display: none;">
-    <h2>シミュレーション結果（KPI）</h2>
-    <div class="metric">実質破綻確率: <span id="failRate">-</span></div>
-    <div class="metric">追加手出し額の分布: <span id="injectionDist">-</span></div>
-    <div class="metric">税引き後 最終総資産額の分布: <span id="p50Asset">-</span></div>
-    <div class="metric">累積納税総額: <span id="taxTotal">-</span></div>
-</div>
-
+    <!-- スクリプトの読み込み -->
     <script src="script.js"></script>
-    
 </body>
 </html>
