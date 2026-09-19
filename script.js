@@ -1,38 +1,32 @@
 document.getElementById('runBtn').addEventListener('click', () => {
     try {
-        // 3. モンテカルロ・シミュレーションのパラメータ
-        const numTrials = 3000; // 試行回数
-        const maxYears = 30;    // 運用期間（年）
-        const taxRate = 0.20315; // 譲渡益税
-        
-        // 初期設定
-        const initialV = 100.0;  // 初期TQQQ投資額（万円）
-        const initialAnchor = 100.0; // 初期仮想アンカー基準値（万円）
-        const bankruptcyThreshold = 150.0; // 実質破綻とみなす累計追加手出しの閾値（万円）
+        // 画面の入力値を取得
+        const mu = parseFloat(document.getElementById('muInput').value);
+        const sigma = parseFloat(document.getElementById('sigmaInput').value);
+        const initialV = parseFloat(document.getElementById('v0Input').value);
+        const maxYears = parseInt(document.getElementById('maxYearsInput').value);
 
-        // パラメータ設定（期待リターン・ボラティリティ）
-        const mu = 0.537;
-        const sigma = 0.704;
+        const numTrials = 3000; 
+        const taxRate = 0.20315;
+        const cVirt = 100.0; // 仮想アンカーバッファ（万円）
+
+        // 対数正規分布のパラメータ計算
         const sigmaLog = Math.sqrt(Math.log(1 + Math.pow(sigma / (1 + mu), 2)));
         const muLog = Math.log(1 + mu) - (sigmaLog * sigmaLog) / 2.0;
 
-        // KPI集計用配列
-        let failureCount = 0;
+        let yearsNeeded = [];
         let totalAddedCapitals = [];
-        let finalAssets = [];
-        let totalTaxesPaid = [];
+        let achievedCount = 0;
 
         for (let i = 0; i < numTrials; i++) {
             let vT = initialV;       // TQQQ評価額（万円）
-            let bT = initialV;       // TQQQ取得原価
-            let cReal = 0.0;         // 実キャッシュプール
-            let iTotal = 0.0;        // 累計追加手出し額
-            let taxTotal = 0.0;      // 累積納税総額
-            let anchor = initialAnchor; // 仮想アンカー基準値
-            let isFailed = false;
+            let bT = initialV;       // 取得原価
+            let cReal = 0.0;         // 実キャッシュ
+            let iTotal = 0.0;        // 累計追加資金
+            let achieved = false;
 
             for (let t = 1; t <= maxYears; t++) {
-                // 1. 価格変動（対数正規乱数による年次リターン）
+                // 1. 価格変動（対数正規乱数）
                 let u1 = Math.max(1e-7, Math.random());
                 let u2 = Math.random();
                 let z = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
@@ -41,51 +35,47 @@ document.getElementById('runBtn').addEventListener('click', () => {
                 let vPrime = vT * (1 + rT);
                 if (vPrime < 0) vPrime = 0;
 
-                // 2. 仮想アンカー基準値（At）に基づくコントロール
-                let targetTQQQ = anchor / 2.0;
-                let delta = vPrime - targetTQQQ;
+                // 2. リバランス目標額
+                let aT = vPrime + cReal + cVirt;
+                let tTarget = aT / 2.0;
+                let delta = vPrime - tTarget;
 
-                if (delta > 0) { 
-                    // ケースB：上昇時・超過発生（リバランス売却 ＆ 課税）
-                    let sellAmount = delta;
-                    let k = sellAmount / vPrime;
+                // 3. リバランス実行
+                if (delta > 0) { // 売却
+                    let k = delta / vPrime;
                     let bSold = bT * k;
-                    let gain = sellAmount - bSold;
+                    let gain = delta - bSold;
                     let tax = Math.max(0.0, gain * taxRate);
-                    let sNet = sellAmount - tax;
+                    let sNet = delta - tax;
 
                     cReal += sNet;
-                    taxTotal += tax;
                     bT -= bSold;
-                    vT = targetTQQQ;
-                } else { 
-                    // ケースA：下落時・不足発生（買増し・追加手出し）
-                    let needed = Math.abs(delta);
-                    let fromCash = Math.min(cReal, needed);
-                    let add = needed - fromCash;
+                    vT = tTarget;
+                } else { // 買増
+                    let p = Math.abs(delta);
+                    let u = Math.min(cReal, p);
+                    let add = p - u;
 
-                    cReal -= fromCash;
+                    cReal -= u;
                     iTotal += add;
-                    bT += needed;
-                    vT = targetTQQQ;
+                    bT += p;
+                    vT = tTarget;
                 }
 
-                // アンカー基準値の更新
-                anchor = Math.max(anchor, vT + cReal);
-
-                // 3. 終了判定
-                if (vT + cReal <= 0 || iTotal > bankruptcyThreshold) {
-                    isFailed = true;
+                // 4. 終了・達成判定（実キャッシュがTQQQ評価額以上になったら達成）
+                if (cReal >= vT) {
+                    yearsNeeded.push(t);
+                    totalAddedCapitals.push(iTotal);
+                    achieved = true;
+                    achievedCount++;
                     break;
                 }
             }
 
-            if (isFailed) {
-                failureCount++;
+            if (!achieved) {
+                yearsNeeded.push(maxYears);
+                totalAddedCapitals.push(iTotal);
             }
-            totalAddedCapitals.push(iTotal);
-            finalAssets.push(vT + cReal);
-            totalTaxesPaid.push(taxTotal);
         }
 
         // 統計処理用ヘルパー
@@ -95,29 +85,34 @@ document.getElementById('runBtn').addEventListener('click', () => {
             return sorted[Math.min(index, sorted.length - 1)];
         }
 
+        function getAverage(arr) {
+            let sum = arr.reduce((a, b) => a + b, 0);
+            return sum / arr.length;
+        }
+
         // 各種KPIの集計
-        const failRate = (failureCount / numTrials) * 100;
+        const achievementRate = (achievedCount / numTrials) * 100;
         
+        // 達成した試行がある場合の達成期間分布（未達成も含める場合はmaxYearsになる）
+        const medYears = getPercentile(yearsNeeded, 50);
+        const avgYears = getAverage(yearsNeeded);
+        const p5Years = getPercentile(yearsNeeded, 5);
+        const p95Years = getPercentile(yearsNeeded, 95);
+
         const medCapital = getPercentile(totalAddedCapitals, 50);
-        const p90Capital = getPercentile(totalAddedCapitals, 90);
-        const p99Capital = getPercentile(totalAddedCapitals, 99);
 
-        const p10Asset = getPercentile(finalAssets, 10);
-        const p50Asset = getPercentile(finalAssets, 50);
-        const p90Asset = getPercentile(finalAssets, 90);
-
-        const medTax = getPercentile(totalTaxesPaid, 50);
-
-        // 4. 画面への反映
-        document.getElementById('failRate').textContent = `${failRate.toFixed(2)}% (破綻閾値: ${bankruptcyThreshold}万円超過)`;
-        document.getElementById('injectionDist').textContent = `中央値(P50): ${medCapital.toFixed(1)} 万円 / 90タイル(P90): ${p90Capital.toFixed(1)} 万円 / 99タイル(P99): ${p99Capital.toFixed(1)} 万円`;
-        document.getElementById('p50Asset').textContent = `中央値(P50): ${Math.round(p50Asset).toLocaleString()} 万円 (P10: ${Math.round(p10Asset).toLocaleString()}万 / P90: ${Math.round(p90Asset).toLocaleString()}万)`;
-        document.getElementById('taxTotal').textContent = `累積納税総額 (中央値): ${medTax.toFixed(1)} 万円`;
+        // 画面への反映
+        document.getElementById('achievementRate').textContent = `${achievementRate.toFixed(1)}% (${achievedCount} / ${numTrials}回)`;
+        document.getElementById('medYears').textContent = `${medYears} 年`;
+        document.getElementById('avgYears').textContent = `${avgYears.toFixed(1)} 年`;
+        document.getElementById('p5Years').textContent = `${p5Years} 年`;
+        document.getElementById('p95Years').textContent = `${p95Years} 年`;
+        document.getElementById('medCapital').textContent = `${medCapital.toFixed(1)} 万円`;
 
         document.getElementById('resultsArea').style.display = 'block';
 
     } catch (error) {
-        console.error("シミュレーション実行中にエラーが発生しました:", error);
-        alert("エラーが発生しました。コンソールを確認してください。");
+        console.error("エラー:", error);
+        alert("計算中にエラーが発生しました。");
     }
 });
