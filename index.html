@@ -43,14 +43,15 @@
         <button id="runBtn">シミュレーション実行</button>
     </div>
 
-    <div class="results" id="resultsArea" style="display: none;">
+<div class="results" id="resultsArea" style="display: none;">
         <h2>シミュレーション結果（KPI）</h2>
-        <div class="metric">破綻確率: <span id="failRate">-</span></div>
-        <div class="metric">通算最大手出し額 (中央値 / 99パーセンタイル): <span id="injectionDist">-</span></div>
-        <div class="metric">最終資産額 (中央値 P50): <span id="p50Asset">-</span></div>
-        <div class="metric">最終資産額 (ワースト P10): <span id="p10Asset">-</span></div>
+        <div class="metric">目標達成状況: <span id="failRate">-</span></div>
+        <div class="metric">累計追加必要資金: <span id="injectionDist">-</span></div>
+        <div class="metric">達成年数 (中央値): <span id="p50Asset">-</span></div>
+        <div class="metric">達成年数 (分布): <span id="p10Asset">-</span></div>
     </div>
 
     <script src="script.js"></script>
+    
 </body>
 </html>
