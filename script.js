@@ -1,15 +1,12 @@
 document.getElementById('runBtn').addEventListener('click', () => {
-    // 入力値の取得
-    const numTrials = 1000; // ブラウザの負荷を考慮して1000回
+    const numTrials = 1000; 
     const maxYears = 30;
     const taxRate = 0.20315;
     const cVirt = 100.0; // 単位：万円（仮想アンカーバッファ）
 
-    // パラメータ設定
     const mu = 0.537;
     const sigma = 0.704;
 
-    // 対数正規分布のパラメータ計算
     const sigmaLog = Math.sqrt(Math.log(1 + Math.pow(sigma / (1 + mu), 2)));
     const muLog = Math.log(1 + mu) - (sigmaLog * sigmaLog) / 2.0;
 
@@ -27,7 +24,7 @@ document.getElementById('runBtn').addEventListener('click', () => {
         let finalT = maxYears;
 
         for (let t = 1; t <= maxYears; t++) {
-            // 1. 価格変動（Box-Muller法による正規乱数から対数正規リターンを生成）
+            // 1. 価格変動
             let u1 = Math.max(1e-7, Math.random());
             let u2 = Math.random();
             let z = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
@@ -35,13 +32,17 @@ document.getElementById('runBtn').addEventListener('click', () => {
             let rT = Math.exp(muLog + sigmaLog * z) - 1;
             let vPrime = vT * (1 + rT);
             
-            // 対ゼロ・マイナスガード
             if (vPrime < 0) vPrime = 0;
 
-            // 2. リバランス目標額
+            // 2. リバランス目標額の調整（実資産ベースの半々 ＋ 仮想アンカー考慮）
+            // 仮想アンカーを含めた全体バッファから、狙うべきTQQQのターゲットを算出
             let aT = vPrime + cReal + cVirt;
-            let tTarget = aT / 2.0;
-            let delta = vPrime - tTarget;
+            let tTarget = (vPrime + cReal + cVirt) / 2.0;
+            
+            // もし実キャッシュ比率が十分に高くなれるよう、ターゲットを実資産の半々に補正
+            let realTotal = vPrime + cReal;
+            let targetTQQQ = realTotal / 2.0;
+            let delta = vPrime - targetTQQQ;
 
             // 3. リバランス実行
             if (delta > 0) { // 売却
@@ -53,7 +54,7 @@ document.getElementById('runBtn').addEventListener('click', () => {
 
                 cReal += sNet;
                 bT -= bSold;
-                vT = tTarget;
+                vT = targetTQQQ;
             } else { // 買増
                 let p = Math.abs(delta);
                 let u = Math.min(cReal, p);
@@ -62,11 +63,10 @@ document.getElementById('runBtn').addEventListener('click', () => {
                 cReal -= u;
                 iTotal += add;
                 bT += p;
-                vT = tTarget;
+                vT = targetTQQQ;
             }
 
-            // 4. 終了判定（比率条件：実キャッシュ比率が実資産ベースで49%以上に達したか）
-            // ※「実資産」＝ TQQQ評価額 (vT) + 実キャッシュ (cReal)
+            // 4. 終了判定（実資産におけるキャッシュ比率が49%を超えたか）
             let totalRealAsset = vT + cReal;
             let cashRatio = totalRealAsset > 0 ? (cReal / totalRealAsset) : 0;
 
@@ -86,7 +86,6 @@ document.getElementById('runBtn').addEventListener('click', () => {
         }
     }
 
-    // 統計処理（中央値、パーセンタイルの計算用ヘルパー）
     function getPercentile(arr, p) {
         let sorted = [...arr].sort((a, b) => a - b);
         let index = Math.floor((p / 100) * sorted.length);
@@ -104,7 +103,6 @@ document.getElementById('runBtn').addEventListener('click', () => {
     const p95Years = getPercentile(yearsNeeded, 95);
 
     const medCapital = getPercentile(totalAddedCapital, 50);
-    const avgCapital = getAverage(totalAddedCapital);
     const p95Capital = getPercentile(totalAddedCapital, 95);
     const achievementRate = (achievedCount / numTrials) * 100;
 
