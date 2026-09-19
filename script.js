@@ -132,11 +132,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const p5Years = getPercentile(yearsNeeded, 5);
             const p95Years = getPercentile(yearsNeeded, 95);
 
+            // 表示の反映（直感的なラベルに改善）
             document.getElementById('failRate').textContent = `${failRate.toFixed(2)}% (破綻閾値: ${bankruptcyThreshold}万円超過または資産枯渇)`;
-            document.getElementById('injectionDist').textContent = `中央値(P50): ${medCapital.toFixed(1)} 万円 / 90タイル(P90): ${p90Capital.toFixed(1)} 万円 / 99タイル(P99): ${p99Capital.toFixed(1)} 万円`;
-            document.getElementById('p50Asset').textContent = `中央値(P50): ${Math.round(p50Asset).toLocaleString()} 万円 (P10: ${Math.round(p10Asset).toLocaleString()}万 / P90: ${Math.round(p90Asset).toLocaleString()}万)`;
+            
+            document.getElementById('injectionDist').textContent = 
+                `中央値（標準）: ${medCapital.toFixed(1)} 万円 ／ 多め（上位10%の負担）: ${p90Capital.toFixed(1)} 万円 ／ 極端な大暴落（上位1%）: ${p99Capital.toFixed(1)} 万円`;
+            
+            document.getElementById('p50Asset').textContent = 
+                `中央値（標準）: ${Math.round(p50Asset).toLocaleString()} 万円 （保守的・下位10%: ${Math.round(p10Asset).toLocaleString()}万 ／ 楽観的・上位10%: ${Math.round(p90Asset).toLocaleString()}万）`;
+            
             document.getElementById('taxTotal').textContent = `${medTax.toFixed(1)} 万円`;
-            document.getElementById('achievementDist').textContent = `達成率: ${achievementRate.toFixed(1)}% | 中央値(P50): ${medYears}年 (平均: ${avgYears.toFixed(1)}年) / 最速(P5): ${p5Years}年 / 遅め(P95): ${p95Years}年`;
+            
+            document.getElementById('achievementDist').textContent = 
+                `達成率: ${achievementRate.toFixed(1)}% | 中央値: ${medYears}年 (平均: ${avgYears.toFixed(1)}年) ／ 最速ペース: ${p5Years}年 ／ 時間がかかるケース: ${p95Years}年`;
 
             document.getElementById('resultsArea').style.display = 'block';
 
