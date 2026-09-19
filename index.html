@@ -3,8 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <title>ルシファーの悪魔 戦略シミュレーター</title>
-    <!-- Chart.js ライブラリの読み込み -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body { font-family: sans-serif; max-width: 900px; margin: 30px auto; padding: 0 20px; line-height: 1.6; color: #333; }
         .controls { background: #f9f9f9; padding: 20px; border-radius: 8px; margin-bottom: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
@@ -16,8 +14,15 @@
         .results { background: #f1f8ff; padding: 20px; border-radius: 8px; }
         .metric { margin-bottom: 14px; font-size: 15px; border-bottom: 1px solid #d1e7dd; padding-bottom: 8px; }
         .metric span { font-weight: bold; color: #0366d6; }
-        /* グラフ表示エリアのCSS追加 */
-        .chart-container { position: relative; margin-top: 25px; height: 350px; width: 100%; background: #fff; padding: 15px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        
+        /* CSSカスタムバーグラフのスタイル */
+        .chart-container { margin-top: 20px; background: #fff; padding: 20px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .chart-title { font-weight: bold; margin-bottom: 15px; font-size: 16px; text-align: center; }
+        .bar-row { display: flex; align-items: center; margin-bottom: 12px; font-size: 14px; }
+        .bar-label { width: 140px; flex-shrink: 0; font-weight: bold; }
+        .bar-track { flex-grow: 1; background: #eee; height: 24px; border-radius: 4px; position: relative; overflow: hidden; margin: 0 10px; }
+        .bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
+        .bar-value { width: 90px; text-align: right; font-weight: bold; flex-shrink: 0; }
     </style>
 </head>
 <body>
@@ -57,9 +62,25 @@
         <div class="metric">4. 累積納税総額 (中央値): <span id="taxTotal">-</span></div>
         <div class="metric">5. 目標達成期間の分布: <span id="achievementDist">-</span></div>
 
-        <!-- グラフ描画エリア -->
+        <!-- HTML/CSSによる確実なバーグラフエリア -->
         <div class="chart-container">
-            <canvas id="resultChart"></canvas>
+            <div class="chart-title">最終総資産額のシナリオ別比較</div>
+            
+            <div class="bar-row">
+                <div class="bar-label">保守的（下位10%）</div>
+                <div class="bar-track"><div id="barP10" class="bar-fill" style="width: 0%; background: #3498db;"></div></div>
+                <div class="bar-value" id="valP10">-</div>
+            </div>
+            <div class="bar-row">
+                <div class="bar-label">中央値（標準）</div>
+                <div class="bar-track"><div id="barP50" class="bar-fill" style="width: 0%; background: #2ecc71;"></div></div>
+                <div class="bar-value" id="valP50">-</div>
+            </div>
+            <div class="bar-row">
+                <div class="bar-label">楽観的（上位10%）</div>
+                <div class="bar-track"><div id="barP90" class="bar-fill" style="width: 0%; background: #e67e22;"></div></div>
+                <div class="bar-value" id="valP90">-</div>
+            </div>
         </div>
     </div>
 
