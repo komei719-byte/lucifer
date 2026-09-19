@@ -9,10 +9,13 @@ document.getElementById('runBtn').addEventListener('click', () => {
     let finalAssets = [];
     let totalInjections = [];
 
-    // TQQQを想定した年次リターンモデル（ITバブル崩壊やリーマン等のテールリスクを簡易ブートストラップ風に模す）
-    // 平均リターン、ボラティリティ、および暴落クラスターの簡易パラメータ
-    const meanReturn = 0.15; // 年利期待値（レバレッジ効果含む）
-    const vol = 0.60;        // 高ボラティリティ (60%)
+    // パラメータ設定（日次換算）
+    const tradingDaysPerYear = 252;
+    // ナスダック100の原資産の期待リターン・ボラティリティをベースに3倍をかける（コスト含む）
+    const underlyingDailyMean = 0.08 / tradingDaysPerYear;
+    const underlyingDailyVol = 0.25 / Math.sqrt(tradingDaysPerYear);
+    const leverage = 3.0;
+    const dailyCost = 0.01 / tradingDaysPerYear; // レバレッジ維持コスト・信託報酬など
 
     for (let t = 0; t < trials; t++) {
         let asset = V0;
@@ -21,44 +24,61 @@ document.getElementById('runBtn').addEventListener('click', () => {
         let isFailed = false;
 
         for (let y = 0; y < years; y++) {
-            // 幾何ブラウン運動＋暴落イベントの確率的発生（ITバブル・リーマン等のショックを模す簡易ロジック）
-            let shock = 0;
-            // 確率的に極端な暴落（例: -60%〜-80%）を発生させる
-            if (Math.random() < 0.10) { 
-                shock = -0.65; // テールリスク発動
-            } else {
-                // 通常時の正規分布風ランダムノイズ (Box-Muller法)
+            let yearStartAsset = asset;
+
+            // 1年を252営業日として日次でシミュレーション（レバレッジ減衰を正確に再現）
+            for (let d = 0; d < tradingDaysPerYear; d++) {
+                // Box-Muller法による正規乱数
                 let u1 = Math.max(1e-7, Math.random());
                 let u2 = Math.random();
                 let z = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
-                shock = meanReturn + vol * z;
+
+                // テールリスク（ITバブルやリーマン等の暴落クラスター）の確率的発生
+                // 暴落期間中は連続して下落圧力がかかるようにする
+                let marketReturn = underlyingDailyMean + underlyingDailyVol * z;
+                
+                // たまに大暴落モードに入る（確率 1.5% 程度で数日間継続するようなショック）
+                if (Math.random() < 0.008) {
+                    marketReturn = -0.07; // 1日で7%下落するような強烈な日
+                }
+
+                // 3倍レバレッジの日常変動（コスト控除含む）
+                let tqqqDailyReturn = marketReturn * leverage - dailyCost;
+
+                asset = asset * (1 + tqqqDailyReturn);
+                if (asset < 0) {
+                    asset = 0;
+                    break;
+                }
             }
 
-            // 資産の変動（対ゼロ・マイナスガード適用）
-            asset = asset * (1 + shock);
-            if (asset < 0) asset = 0;
+            if (asset <= 0) {
+                isFailed = true;
+                break;
+            }
 
-            // 年次リバランスと仮想アンカーの仕組み
-            // ターゲット（アンカー）を下回った場合、乖離額を追加手出しで補填する
-            if (asset < anchor) {
-                let shortage = anchor - asset;
-                
-                // 通算上限チェック
+            // --- 年次リバランスと仮想アンカー判定 ---
+            // 仕様書に基づく「仮想アンカー基準値 ($A_t$)」との比較
+            // ここでは前年のアンカー、または目標とするベースに対して不足分を計算
+            let targetAnchor = anchor; // 通常は前年のアンカーを維持またはインフレ調整
+            
+            if (asset < targetAnchor) {
+                let shortage = targetAnchor - asset;
+
+                // 通算上限（B_max）のチェック
                 if (cumulativeInjection + shortage > B_max) {
-                    // バッファを使い果たして破綻
                     isFailed = true;
                     cumulativeInjection = B_max;
                     asset = 0;
                     break;
                 } else {
                     cumulativeInjection += shortage;
-                    asset = anchor; // アンカーまでバッファで復元
+                    asset = targetAnchor; // 追加手出しでアンカー水準まで回復
                 }
+            } else {
+                // 資産が増えている場合はアンカーを切り上げる（あるいは一定に保つ）
+                anchor = Math.max(anchor, asset);
             }
-
-            // 翌年の仮想アンカーを更新（または固定）
-            // ここではシンプルに前年のアンカーまたは資産ベースを維持
-            anchor = Math.max(anchor, asset);
         }
 
         if (isFailed) {
