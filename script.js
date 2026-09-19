@@ -1,3 +1,5 @@
+let myChart = null; // グラフのインスタンス保持用
+
 document.addEventListener('DOMContentLoaded', () => {
     const runBtn = document.getElementById('runBtn');
     if (!runBtn) {
@@ -132,21 +134,59 @@ document.addEventListener('DOMContentLoaded', () => {
             const p5Years = getPercentile(yearsNeeded, 5);
             const p95Years = getPercentile(yearsNeeded, 95);
 
-            // 表示の反映（直感的なラベルに改善）
+            // テキストの反映
             document.getElementById('failRate').textContent = `${failRate.toFixed(2)}% (破綻閾値: ${bankruptcyThreshold}万円超過または資産枯渇)`;
-            
-            document.getElementById('injectionDist').textContent = 
-                `中央値（標準）: ${medCapital.toFixed(1)} 万円 ／ 多め（上位10%の負担）: ${p90Capital.toFixed(1)} 万円 ／ 極端な大暴落（上位1%）: ${p99Capital.toFixed(1)} 万円`;
-            
-            document.getElementById('p50Asset').textContent = 
-                `中央値（標準）: ${Math.round(p50Asset).toLocaleString()} 万円 （保守的・下位10%: ${Math.round(p10Asset).toLocaleString()}万 ／ 楽観的・上位10%: ${Math.round(p90Asset).toLocaleString()}万）`;
-            
+            document.getElementById('injectionDist').textContent = `中央値（標準）: ${medCapital.toFixed(1)} 万円 ／ 多め（上位10%の負担）: ${p90Capital.toFixed(1)} 万円 ／ 極端な大暴落（上位1%）: ${p99Capital.toFixed(1)} 万円`;
+            document.getElementById('p50Asset').textContent = `中央値（標準）: ${Math.round(p50Asset).toLocaleString()} 万円 （保守的・下位10%: ${Math.round(p10Asset).toLocaleString()}万 ／ 楽観的・上位10%: ${Math.round(p90Asset).toLocaleString()}万）`;
             document.getElementById('taxTotal').textContent = `${medTax.toFixed(1)} 万円`;
-            
-            document.getElementById('achievementDist').textContent = 
-                `達成率: ${achievementRate.toFixed(1)}% | 中央値: ${medYears}年 (平均: ${avgYears.toFixed(1)}年) ／ 最速ペース: ${p5Years}年 ／ 時間がかかるケース: ${p95Years}年`;
+            document.getElementById('achievementDist').textContent = `達成率: ${achievementRate.toFixed(1)}% | 中央値: ${medYears}年 (平均: ${avgYears.toFixed(1)}年) ／ 最速ペース: ${p5Years}年 ／ 時間がかかるケース: ${p95Years}年`;
 
             document.getElementById('resultsArea').style.display = 'block';
+
+            // --- グラフの描画 (Chart.js) ---
+            const ctx = document.getElementById('resultChart').getContext('2d');
+            
+            // 既にグラフが存在する場合は一度破棄して再描画する
+            if (myChart) {
+                myChart.destroy();
+            }
+
+            myChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['下位10%（保守的）', '中央値（標準）', '上位10%（楽観的）'],
+                    datasets: [{
+                        label: '税引き後 最終総資産額 (万円)',
+                        data: [Math.round(p10Asset), Math.round(p50Asset), Math.round(p90Asset)],
+                        backgroundColor: ['rgba(54, 162, 235, 0.6)', 'rgba(46, 164, 79, 0.6)', 'rgba(255, 159, 64, 0.6)'],
+                        borderColor: ['rgba(54, 162, 235, 1)', 'rgba(46, 164, 79, 1)', 'rgba(255, 159, 64, 1)'],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: '最終総資産額のシナリオ別比較',
+                            font: { size: 16 }
+                        },
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: '万円'
+                            }
+                        }
+                    }
+                }
+            });
 
         } catch (error) {
             console.error("エラー詳細:", error);
