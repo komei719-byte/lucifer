@@ -92,26 +92,33 @@ document.getElementById('runBtn').addEventListener('click', () => {
 
         // 各種KPIの集計
         const achievementRate = (achievedCount / numTrials) * 100;
+        const unachievementRate = 100.0 - achievementRate;
         
+        const medCapital = getPercentile(totalAddedCapitals, 50);
+        const p95Capital = getPercentile(totalAddedCapitals, 95);
+
         const medYears = getPercentile(yearsNeeded, 50);
         const avgYears = getAverage(yearsNeeded);
         const p5Years = getPercentile(yearsNeeded, 5);
         const p95Years = getPercentile(yearsNeeded, 95);
 
-        const medCapital = getPercentile(totalAddedCapitals, 50);
-
-        // 画面への反映
-        document.getElementById('achievementRate').textContent = `${achievementRate.toFixed(1)}% (${achievedCount} / ${numTrials}回)`;
-        document.getElementById('medYears').textContent = `${medYears} 年`;
-        document.getElementById('avgYears').textContent = `${avgYears.toFixed(1)} 年`;
-        document.getElementById('p5Years').textContent = `${p5Years} 年`;
-        document.getElementById('p95Years').textContent = `${p95Years} 年`;
-        document.getElementById('medCapital').textContent = `${medCapital.toFixed(1)} 万円`;
+        // 画面への反映（元々の形式を完全再現）
+        document.getElementById('achievementRate').textContent = 
+            `${achievementRate.toFixed(1)}% (達成率) / 未達成率: ${unachievementRate.toFixed(1)}%`;
+        
+        document.getElementById('addedCapitalMetric').textContent = 
+            `中央値: ${medCapital.toFixed(1)} 万円 / 95タイル(ワースト): ${p95Capital.toFixed(1)} 万円`;
+        
+        document.getElementById('medYearsMetric').textContent = 
+            `中央値: ${medYears} 年 (平均: ${avgYears.toFixed(1)}年)`;
+        
+        document.getElementById('distYearsMetric').textContent = 
+            `最速(5%): ${p5Years} 年 / 遅め(95%): ${p95Years} 年`;
 
         document.getElementById('resultsArea').style.display = 'block';
 
     } catch (error) {
         console.error("エラー:", error);
-        alert("計算中にエラーが発生しました。");
+        alert("計算中にエラーが発生しました。コンソールを確認してください。");
     }
 });
