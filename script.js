@@ -1,11 +1,11 @@
 document.getElementById('runBtn').addEventListener('click', () => {
-    // 入力値の取得（HTML側の入力値に合わせて調整可能ですが、一旦デフォルト値で直書きまたは要素から取得）
-    const numTrials = 1000; // ブラウザの負荷を考慮してデフォルト1000回（必要なら増減可能）
+    // 入力値の取得
+    const numTrials = 1000; // ブラウザの負荷を考慮して1000回
     const maxYears = 30;
     const taxRate = 0.20315;
-    const cVirt = 100.0; // 単位：万円
+    const cVirt = 100.0; // 単位：万円（仮想アンカーバッファ）
 
-    // パラメータ設定（Pythonコードに準拠）
+    // パラメータ設定
     const mu = 0.537;
     const sigma = 0.704;
 
@@ -35,7 +35,7 @@ document.getElementById('runBtn').addEventListener('click', () => {
             let rT = Math.exp(muLog + sigmaLog * z) - 1;
             let vPrime = vT * (1 + rT);
             
-            // 対ゼロ・マイナスガード（万が一の破綻防衛）
+            // 対ゼロ・マイナスガード
             if (vPrime < 0) vPrime = 0;
 
             // 2. リバランス目標額
@@ -65,8 +65,12 @@ document.getElementById('runBtn').addEventListener('click', () => {
                 vT = tTarget;
             }
 
-            // 4. 終了判定（実キャッシュがTQQQ評価額以上になったら達成）
-            if (cReal >= vT) {
+            // 4. 終了判定（比率条件：実キャッシュ比率が実資産ベースで49%以上に達したか）
+            // ※「実資産」＝ TQQQ評価額 (vT) + 実キャッシュ (cReal)
+            let totalRealAsset = vT + cReal;
+            let cashRatio = totalRealAsset > 0 ? (cReal / totalRealAsset) : 0;
+
+            if (cashRatio >= 0.49) {
                 yearsNeeded.push(t);
                 totalAddedCapital.push(iTotal);
                 achieved = true;
