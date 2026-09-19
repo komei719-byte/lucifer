@@ -2,31 +2,53 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>モンテカルロシミュレーション</title>
+    <title>ルシファーの悪魔 - モンテカルロ・シミュレーション</title>
     <style>
-        body { font-family: sans-serif; text-align: center; margin-top: 30px; }
-        canvas { border: 1px solid #333; background: #fff; margin-bottom: 20px; }
-        .controls { margin-bottom: 20px; }
-        button { padding: 10px 20px; font-size: 16px; cursor: pointer; }
-        .result { font-size: 18px; font-weight: bold; }
+        body { font-family: sans-serif; max-width: 900px; margin: 30px auto; padding: 0 20px; color: #333; }
+        h1 { font-size: 24px; border-bottom: 2px solid #333; padding-bottom: 10px; }
+        .controls { background: #f9f9f9; padding: 20px; border-radius: 8px; margin-bottom: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .control-group { display: flex; flex-direction: column; }
+        label { font-size: 14px; font-weight: bold; margin-bottom: 5px; }
+        input { padding: 8px; font-size: 14px; }
+        button { grid-column: span 2; padding: 12px; font-size: 16px; font-weight: bold; background: #2ea44f; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #2c974b; }
+        .results { background: #f1f8ff; padding: 20px; border-radius: 8px; }
+        .results h2 { margin-top: 0; font-size: 18px; }
+        .metric { font-size: 16px; margin: 10px 0; }
+        .metric span { font-weight: bold; color: #0366d6; }
     </style>
 </head>
 <body>
 
-    <h1>モンテカルロ法による円周率の推定</h1>
-    
+    <h1>「ルシファーの悪魔」シミュレーション</h1>
+    <p>仮想アンカーと追加手出しバッファによる防衛型フルレバレッジ戦略（TQQQ対象）の破綻確率検証システム</p>
+
     <div class="controls">
-        <button id="startBtn">シミュレーション開始</button>
-        <button id="resetBtn">リセット</button>
+        <div class="control-group">
+            <label>初期投資額 ($V_0$):</label>
+            <input type="number" id="v0" value="1000000">
+        </div>
+        <div class="control-group">
+            <label>運用期間 (年):</label>
+            <input type="number" id="years" value="20">
+        </div>
+        <div class="control-group">
+            <label>試行回数 (N):</label>
+            <input type="number" id="trials" value="1000">
+        </div>
+        <div class="control-group">
+            <label>通算手出し上限 ($B_{\text{max}}$):</label>
+            <input type="number" id="bMax" value="3000000">
+        </div>
+        <button id="runBtn">シミュレーション実行</button>
     </div>
 
-    <div>
-        <canvas id="simCanvas" width="400" height="400"></canvas>
-    </div>
-
-    <div class="result">
-        <p>試行回数: <span id="count">0</span></p>
-        <p>推定された円周率: <span id="pi">0.000000</span></p>
+    <div class="results" id="resultsArea" style="display: none;">
+        <h2>シミュレーション結果（KPI）</h2>
+        <div class="metric">破綻確率: <span id="failRate">-</span></div>
+        <div class="metric">通算最大手出し額 (中央値 / 99パーセンタイル): <span id="injectionDist">-</span></div>
+        <div class="metric">最終資産額 (中央値 P50): <span id="p50Asset">-</span></div>
+        <div class="metric">最終資産額 (ワースト P10): <span id="p10Asset">-</span></div>
     </div>
 
     <script src="script.js"></script>
