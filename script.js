@@ -62,7 +62,7 @@ document.getElementById('runBtn').addEventListener('click', () => {
                     vT = tTarget;
                 }
 
-                // 4. 終了・達成判定（実キャッシュがTQQQ評価額以上になったら達成）
+                // 4. 終了・達成判定
                 if (cReal >= vT) {
                     yearsNeeded.push(t);
                     totalAddedCapitals.push(iTotal);
@@ -93,7 +93,6 @@ document.getElementById('runBtn').addEventListener('click', () => {
         // 各種KPIの集計
         const achievementRate = (achievedCount / numTrials) * 100;
         
-        // 達成した試行がある場合の達成期間分布（未達成も含める場合はmaxYearsになる）
         const medYears = getPercentile(yearsNeeded, 50);
         const avgYears = getAverage(yearsNeeded);
         const p5Years = getPercentile(yearsNeeded, 5);
