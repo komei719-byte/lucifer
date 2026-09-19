@@ -1,111 +1,114 @@
 document.getElementById('runBtn').addEventListener('click', () => {
-    // 入力値の取得
-    const V0 = parseFloat(document.getElementById('v0').value);
-    const years = parseInt(document.getElementById('years').value);
-    const trials = parseInt(document.getElementById('trials').value);
-    const B_max = parseFloat(document.getElementById('bMax').value);
+    // 入力値の取得（HTML側の入力値に合わせて調整可能ですが、一旦デフォルト値で直書きまたは要素から取得）
+    const numTrials = 1000; // ブラウザの負荷を考慮してデフォルト1000回（必要なら増減可能）
+    const maxYears = 30;
+    const taxRate = 0.20315;
+    const cVirt = 100.0; // 単位：万円
 
-    let failureCount = 0;
-    let finalAssets = [];
-    let totalInjections = [];
+    // パラメータ設定（Pythonコードに準拠）
+    const mu = 0.537;
+    const sigma = 0.704;
 
-    // パラメータ設定（日次換算）
-    const tradingDaysPerYear = 252;
-    const underlyingDailyMean = 0.08 / tradingDaysPerYear;
-    const underlyingDailyVol = 0.25 / Math.sqrt(tradingDaysPerYear);
-    const leverage = 3.0;
-    const dailyCost = 0.01 / tradingDaysPerYear; // レバレッジ維持コスト
+    // 対数正規分布のパラメータ計算
+    const sigmaLog = Math.sqrt(Math.log(1 + Math.pow(sigma / (1 + mu), 2)));
+    const muLog = Math.log(1 + mu) - (sigmaLog * sigmaLog) / 2.0;
 
-    for (let t = 0; t < trials; t++) {
-        let asset = V0;
-        let anchor = V0; // 仮想アンカー基準値
-        let cumulativeInjection = 0;
-        let isFailed = false;
+    let yearsNeeded = [];
+    let totalAddedCapital = [];
+    let achievedCount = 0;
 
-        for (let y = 0; y < years; y++) {
-            // 1年を252営業日として日次でシミュレーション
-            for (let d = 0; d < tradingDaysPerYear; d++) {
-                // Box-Muller法による正規乱数
-                let u1 = Math.max(1e-7, Math.random());
-                let u2 = Math.random();
-                let z = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
+    for (let i = 0; i < numTrials; i++) {
+        let vT = 100.0;     // TQQQ評価額（万円）
+        let bT = 100.0;     // 取得原価
+        let cReal = 0.0;    // 実キャッシュ
+        let iTotal = 0.0;   // 累計追加資金
 
-                let marketReturn = underlyingDailyMean + underlyingDailyVol * z;
-                
-                // 暴落クラスター（テールリスク）
-                if (Math.random() < 0.008) {
-                    marketReturn = -0.07; // 1日で7%下落
-                }
+        let achieved = false;
+        let finalT = maxYears;
 
-                // 3倍レバレッジの日常変動
-                let tqqqDailyReturn = marketReturn * leverage - dailyCost;
+        for (let t = 1; t <= maxYears; t++) {
+            // 1. 価格変動（Box-Muller法による正規乱数から対数正規リターンを生成）
+            let u1 = Math.max(1e-7, Math.random());
+            let u2 = Math.random();
+            let z = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
+            
+            let rT = Math.exp(muLog + sigmaLog * z) - 1;
+            let vPrime = vT * (1 + rT);
+            
+            // 対ゼロ・マイナスガード（万が一の破綻防衛）
+            if (vPrime < 0) vPrime = 0;
 
-                // --- 【対ゼロ・マイナスガード】 ---
-                // レバレッジ商品がどんなに暴落しても、1日の下落率が -100%（因子が 0）を下回って
-                // 資産価値がマイナス（負値）や計算エラー（NaN）にならないよう厳格にガードする
-                if (tqqqDailyReturn <= -1.0) {
-                    tqqqDailyReturn = -0.9999; // 理論上のゼロ収れんガード（完全ロスト手前で踏みとどまる）
-                }
+            // 2. リバランス目標額
+            let aT = vPrime + cReal + cVirt;
+            let tTarget = aT / 2.0;
+            let delta = vPrime - tTarget;
 
-                asset = asset * (1 + tqqqDailyReturn);
+            // 3. リバランス実行
+            if (delta > 0) { // 売却
+                let k = delta / vPrime;
+                let bSold = bT * k;
+                let gain = delta - bSold;
+                let tax = Math.max(0.0, gain * taxRate);
+                let sNet = delta - tax;
 
-                // 資産が実質的にゼロとみなせる水準（例: 1円未満）になった場合のフロア処理
-                if (asset < 1.0) {
-                    asset = 0.0;
-                    break;
-                }
+                cReal += sNet;
+                bT -= bSold;
+                vT = tTarget;
+            } else { // 買増
+                let p = Math.abs(delta);
+                let u = Math.min(cReal, p);
+                let add = p - u;
+
+                cReal -= u;
+                iTotal += add;
+                bT += p;
+                vT = tTarget;
             }
 
-            if (asset <= 0) {
-                isFailed = true;
+            // 4. 終了判定（実キャッシュがTQQQ評価額以上になったら達成）
+            if (cReal >= vT) {
+                yearsNeeded.push(t);
+                totalAddedCapital.push(iTotal);
+                achieved = true;
+                achievedCount++;
+                finalT = t;
                 break;
             }
-
-            // --- 年次リバランスと仮想アンカー判定 ---
-            let targetAnchor = anchor;
-            
-            if (asset < targetAnchor) {
-                let shortage = targetAnchor - asset;
-
-                // 通算上限（B_max）のチェック
-                if (cumulativeInjection + shortage > B_max) {
-                    isFailed = true;
-                    cumulativeInjection = B_max;
-                    asset = 0;
-                    break;
-                } else {
-                    cumulativeInjection += shortage;
-                    asset = targetAnchor; // 追加手出しでアンカー水準まで回復
-                }
-            } else {
-                anchor = Math.max(anchor, asset);
-            }
         }
 
-        if (isFailed) {
-            failureCount++;
-            finalAssets.push(0);
-        } else {
-            finalAssets.push(asset);
+        if (!achieved) {
+            yearsNeeded.push(maxYears);
+            totalAddedCapital.push(iTotal);
         }
-        totalInjections.push(cumulativeInjection);
     }
 
-    // 統計処理（KPIの算出）
-    finalAssets.sort((a, b) => a - b);
-    totalInjections.sort((a, b) => a - b);
+    // 統計処理（中央値、パーセンタイルの計算用ヘルパー）
+    function getPercentile(arr, p) {
+        let sorted = [...arr].sort((a, b) => a - b);
+        let index = Math.floor((p / 100) * sorted.length);
+        return sorted[Math.min(index, sorted.length - 1)];
+    }
 
-    const failRate = (failureCount / trials) * 100;
-    const p50Asset = finalAssets[Math.floor(trials * 0.50)];
-    const p10Asset = finalAssets[Math.floor(trials * 0.10)];
-    const injMedian = totalInjections[Math.floor(trials * 0.50)];
-    const inj99 = totalInjections[Math.floor(trials * 0.99)];
+    function getAverage(arr) {
+        let sum = arr.reduce((a, b) => a + b, 0);
+        return sum / arr.length;
+    }
+
+    const medYears = getPercentile(yearsNeeded, 50);
+    const avgYears = getAverage(yearsNeeded);
+    const p5Years = getPercentile(yearsNeeded, 5);
+    const p95Years = getPercentile(yearsNeeded, 95);
+
+    const medCapital = getPercentile(totalAddedCapital, 50);
+    const avgCapital = getAverage(totalAddedCapital);
+    const p95Capital = getPercentile(totalAddedCapital, 95);
+    const achievementRate = (achievedCount / numTrials) * 100;
 
     // 画面への反映
-    document.getElementById('failRate').textContent = failRate.toFixed(2) + '%';
-    document.getElementById('injectionDist').textContent = `中央値: ${Math.round(injMedian).toLocaleString()}円 / 99タイル: ${Math.round(inj99).toLocaleString()}円`;
-    document.getElementById('p50Asset').textContent = Math.round(p50Asset).toLocaleString() + '円';
-    document.getElementById('p10Asset').textContent = Math.round(p10Asset).toLocaleString() + '円';
+    document.getElementById('failRate').textContent = `${achievementRate.toFixed(1)}% (達成率) / 未達成率: ${(100 - achievementRate).toFixed(1)}%`;
+    document.getElementById('injectionDist').textContent = `中央値: ${medCapital.toFixed(1)} 万円 / 95タイル(ワースト): ${p95Capital.toFixed(1)} 万円`;
+    document.getElementById('p50Asset').textContent = `中央値: ${medYears} 年 (平均: ${avgYears.toFixed(1)}年)`;
+    document.getElementById('p10Asset').textContent = `最速(5%): ${p5Years} 年 / 遅め(95%): ${p95Years} 年`;
 
     document.getElementById('resultsArea').style.display = 'block';
 });
