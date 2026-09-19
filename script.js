@@ -1,59 +1,148 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <title>ルシファーの悪魔 戦略シミュレーター</title>
-    <style>
-        body { font-family: sans-serif; max-width: 900px; margin: 30px auto; padding: 0 20px; line-height: 1.6; color: #333; }
-        .controls { background: #f9f9f9; padding: 20px; border-radius: 8px; margin-bottom: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-        .control-group { display: flex; flex-direction: column; }
-        label { font-size: 14px; font-weight: bold; margin-bottom: 5px; }
-        input { padding: 8px; font-size: 14px; }
-        button { grid-column: span 2; padding: 12px; font-size: 16px; font-weight: bold; background: #2ea44f; color: white; border: none; border-radius: 4px; cursor: pointer; }
-        button:hover { background: #2c974b; }
-        .results { background: #f1f8ff; padding: 20px; border-radius: 8px; }
-        .metric { margin-bottom: 14px; font-size: 15px; border-bottom: 1px solid #d1e7dd; padding-bottom: 8px; }
-        .metric span { font-weight: bold; color: #0366d6; }
-    </style>
-</head>
-<body>
+document.addEventListener('DOMContentLoaded', () => {
+    const runBtn = document.getElementById('runBtn');
+    if (!runBtn) {
+        console.error("runBtnが見つかりません");
+        return;
+    }
 
-    <h1>ルシファーの悪魔 戦略シミュレーター</h1>
-    <p>パラメータを設定してシミュレーションを実行してください</p>
+    runBtn.addEventListener('click', () => {
+        try {
+            // 画面の入力値を取得
+            const mu = parseFloat(document.getElementById('muInput').value);
+            const sigma = parseFloat(document.getElementById('sigmaInput').value);
+            const initialV = parseFloat(document.getElementById('v0Input').value);
+            const maxYears = parseInt(document.getElementById('maxYearsInput').value);
+            const bankruptcyThreshold = parseFloat(document.getElementById('bankruptcyThresholdInput').value);
 
-    <div class="controls">
-        <div class="control-group">
-            <label>期待リターン ($\mu$):</label>
-            <input type="number" id="muInput" value="0.537" step="0.01">
-        </div>
-        <div class="control-group">
-            <label>リスク・ボラティリティ ($\sigma$):</label>
-            <input type="number" id="sigmaInput" value="0.704" step="0.01">
-        </div>
-        <div class="control-group">
-            <label>初期投資額 (万円):</label>
-            <input type="number" id="v0Input" value="100.0" step="10">
-        </div>
-        <div class="control-group">
-            <label>運用上限期間 (年):</label>
-            <input type="number" id="maxYearsInput" value="30">
-        </div>
-        <div class="control-group" style="grid-column: span 2;">
-            <label>破綻とみなす累計追加手出しの閾値 (万円):</label>
-            <input type="number" id="bankruptcyThresholdInput" value="150.0" step="10">
-        </div>
-        <button id="runBtn">シミュレーション実行</button>
-    </div>
+            const numTrials = 3000; 
+            const taxRate = 0.20315;
+            const initialAnchor = initialV;
 
-    <div class="results" id="resultsArea" style="display: none;">
-        <h2>シミュレーション結果（総合KPI）</h2>
-        <div class="metric">1. 実質破綻確率 (%): <span id="failRate">-</span></div>
-        <div class="metric">2. 追加手出し額の分布 (P50 / P90 / P99): <span id="injectionDist">-</span></div>
-        <div class="metric">3. 税引き後 最終総資産額の分布 (P10 / P50 / P90): <span id="p50Asset">-</span></div>
-        <div class="metric">4. 累積納税総額 (中央値): <span id="taxTotal">-</span></div>
-        <div class="metric">5. 目標達成期間の分布 (達成率 / 中央値・平均・P5・P95): <span id="achievementDist">-</span></div>
-    </div>
+            // 対数正規分布のパラメータ計算
+            const sigmaLog = Math.sqrt(Math.log(1 + Math.pow(sigma / (1 + mu), 2)));
+            const muLog = Math.log(1 + mu) - (sigmaLog * sigmaLog) / 2.0;
 
-    <script src="script.js"></script>
-</body>
-</html>
+            // 集計用配列
+            let failureCount = 0;
+            let totalAddedCapitals = [];
+            let finalAssets = [];
+            let totalTaxesPaid = [];
+            let yearsNeeded = [];
+            let achievedCount = 0;
+
+            for (let i = 0; i < numTrials; i++) {
+                let vT = initialV;          
+                let bT = initialV;          
+                let cReal = 0.0;            
+                let iTotal = 0.0;           
+                let taxTotal = 0.0;         
+                let anchor = initialAnchor; 
+                let isFailed = false;
+                let achievedYear = null;
+
+                for (let t = 1; t <= maxYears; t++) {
+                    let u1 = Math.max(1e-7, Math.random());
+                    let u2 = Math.random();
+                    let z = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
+                    let rT = Math.exp(muLog + sigmaLog * z) - 1;
+                    
+                    let vPrime = vT * (1 + rT);
+                    if (vPrime < 0) vPrime = 0;
+
+                    let targetTQQQ = anchor / 2.0;
+                    let delta = vPrime - targetTQQQ;
+
+                    if (delta > 0) { 
+                        let sellAmount = delta;
+                        let k = sellAmount / vPrime;
+                        let bSold = bT * k;
+                        let gain = sellAmount - bSold;
+                        let tax = Math.max(0.0, gain * taxRate);
+                        let sNet = sellAmount - tax;
+
+                        cReal += sNet;
+                        taxTotal += tax;
+                        bT -= bSold;
+                        vT = targetTQQQ;
+                    } else { 
+                        let needed = Math.abs(delta);
+                        let fromCash = Math.min(cReal, needed);
+                        let add = needed - fromCash;
+
+                        cReal -= fromCash;
+                        iTotal += add;
+                        bT += needed;
+                        vT = targetTQQQ;
+                    }
+
+                    anchor = Math.max(anchor, vT + cReal);
+
+                    if (achievedYear === null && cReal >= vT) {
+                        achievedYear = t;
+                    }
+
+                    if (vT + cReal <= 0 || iTotal > bankruptcyThreshold) {
+                        isFailed = true;
+                        break;
+                    }
+                }
+
+                if (isFailed) {
+                    failureCount++;
+                    yearsNeeded.push(maxYears);
+                } else {
+                    if (achievedYear !== null) {
+                        achievedCount++;
+                        yearsNeeded.push(achievedYear);
+                    } else {
+                        yearsNeeded.push(maxYears);
+                    }
+                }
+
+                totalAddedCapitals.push(iTotal);
+                finalAssets.push(vT + cReal);
+                totalTaxesPaid.push(taxTotal);
+            }
+
+            function getPercentile(arr, p) {
+                let sorted = [...arr].sort((a, b) => a - b);
+                let index = Math.floor((p / 100) * sorted.length);
+                return sorted[Math.min(index, sorted.length - 1)];
+            }
+
+            function getAverage(arr) {
+                let sum = arr.reduce((a, b) => a + b, 0);
+                return sum / arr.length;
+            }
+
+            const failRate = (failureCount / numTrials) * 100;
+            const medCapital = getPercentile(totalAddedCapitals, 50);
+            const p90Capital = getPercentile(totalAddedCapitals, 90);
+            const p99Capital = getPercentile(totalAddedCapitals, 99);
+
+            const p10Asset = getPercentile(finalAssets, 10);
+            const p50Asset = getPercentile(finalAssets, 50);
+            const p90Asset = getPercentile(finalAssets, 90);
+
+            const medTax = getPercentile(totalTaxesPaid, 50);
+
+            const achievementRate = (achievedCount / numTrials) * 100;
+            const medYears = getPercentile(yearsNeeded, 50);
+            const avgYears = getAverage(yearsNeeded);
+            const p5Years = getPercentile(yearsNeeded, 5);
+            const p95Years = getPercentile(yearsNeeded, 95);
+
+            document.getElementById('failRate').textContent = `${failRate.toFixed(2)}% (破綻閾値: ${bankruptcyThreshold}万円超過または資産枯渇)`;
+            document.getElementById('injectionDist').textContent = `中央値(P50): ${medCapital.toFixed(1)} 万円 / 90タイル(P90): ${p90Capital.toFixed(1)} 万円 / 99タイル(P99): ${p99Capital.toFixed(1)} 万円`;
+            document.getElementById('p50Asset').textContent = `中央値(P50): ${Math.round(p50Asset).toLocaleString()} 万円 (P10: ${Math.round(p10Asset).toLocaleString()}万 / P90: ${Math.round(p90Asset).toLocaleString()}万)`;
+            document.getElementById('taxTotal').textContent = `${medTax.toFixed(1)} 万円`;
+            document.getElementById('achievementDist').textContent = `達成率: ${achievementRate.toFixed(1)}% | 中央値(P50): ${medYears}年 (平均: ${avgYears.toFixed(1)}年) / 最速(P5): ${p5Years}年 / 遅め(P95): ${p95Years}年`;
+
+            document.getElementById('resultsArea').style.display = 'block';
+
+        } catch (error) {
+            console.error("エラー詳細:", error);
+            alert("計算中にエラーが発生しました。コンソールを確認してください。");
+        }
+    });
+});
